@@ -523,7 +523,6 @@
         <button id="attendanceBtn" class="hidden">근태 현황</button>
         <button id="calSettingsBtn" class="hidden">캘린더 설정</button>
         <button id="accountSettingsBtn2">계정 설정</button>
-        <button id="timeTreeImportBtn">📥 TimeTree 가져오기</button>
         <button id="googleCalendarBtn">🔗 구글 캘린더 연동</button>
         <div class="account-menu-divider"></div>
         <button id="logoutBtn2" class="danger">로그아웃</button>
@@ -1109,7 +1108,6 @@ async function openCalendar(calendarId){
   }
   document.getElementById('accountSettingsBtn2').onclick = openAccountSettingsDrawer;
   document.getElementById('membersPanelToggle').onclick = openMembersPanel;
-  document.getElementById('timeTreeImportBtn').onclick = openTimeTreeImportDrawer;
   document.getElementById('googleCalendarBtn').onclick = openGoogleCalendarDrawer;
   handleGoogleOAuthRedirect();
   document.querySelectorAll('#viewTabs button').forEach(b=>{
@@ -2367,153 +2365,6 @@ function openCalendarSettingsDrawer(cal){
     if(state.channel){ sb.removeChannel(state.channel); state.channel = null; }
     state.calendar = null;
     showPicker();
-  };
-  document.getElementById('overlay').classList.add('show');
-}
-
-/* ============================ TimeTree .ics 가져오기 (읽기 전용 수동 동기화) ============================ */
-function unescapeICSText(s){
-  return s.replace(/\\n/gi,'\n').replace(/\\,/g,',').replace(/\\;/g,';').replace(/\\\\/g,'\\');
-}
-function parseICS(text){
-  const rawLines = text.split(/\r\n|\n|\r/);
-  const lines = [];
-  rawLines.forEach(line=>{
-    if((line.startsWith(' ') || line.startsWith('\t')) && lines.length){
-      lines[lines.length-1] += line.slice(1);
-    } else {
-      lines.push(line);
-    }
-  });
-
-  const events = [];
-  let cur = null;
-  lines.forEach(line=>{
-    if(line === 'BEGIN:VEVENT'){ cur = {}; return; }
-    if(line === 'END:VEVENT'){ if(cur) events.push(cur); cur = null; return; }
-    if(!cur) return;
-    const idx = line.indexOf(':');
-    if(idx === -1) return;
-    let key = line.slice(0, idx);
-    const value = line.slice(idx+1);
-    const semi = key.indexOf(';');
-    const params = {};
-    if(semi !== -1){
-      const paramStr = key.slice(semi+1);
-      key = key.slice(0, semi);
-      paramStr.split(';').forEach(p=>{
-        const eq = p.indexOf('=');
-        if(eq !== -1) params[p.slice(0,eq).toUpperCase()] = p.slice(eq+1);
-      });
-    }
-    key = key.toUpperCase();
-    if(key === 'SUMMARY') cur.summary = unescapeICSText(value);
-    else if(key === 'DESCRIPTION') cur.description = unescapeICSText(value);
-    else if(key === 'UID') cur.uid = value;
-    else if(key === 'DTSTART'){ cur.dtstart = value; cur.dtstartParams = params; }
-    else if(key === 'DTEND'){ cur.dtend = value; cur.dtendParams = params; }
-    else if(key === 'RRULE'){ cur.rrule = value; }
-  });
-  return events;
-}
-function parseICSDateTime(value, params){
-  if(!value) return null;
-  const pad2 = n=>String(n).padStart(2,'0');
-  if((params && params.VALUE === 'DATE') || /^\d{8}$/.test(value)){
-    return { date: `${value.slice(0,4)}-${value.slice(4,6)}-${value.slice(6,8)}`, time: null, allDay: true };
-  }
-  const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
-  if(!m) return null;
-  const [, y, mo, d, h, mi, s, z] = m;
-  const dt = z ? new Date(Date.UTC(+y, +mo-1, +d, +h, +mi, +s)) : new Date(+y, +mo-1, +d, +h, +mi, +s);
-  return {
-    date: `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`,
-    time: `${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`,
-    allDay: false
-  };
-}
-async function importTimeTreeICS(text){
-  const rawEvents = parseICS(text);
-  const myMemberId = state.members.find(m=>m.user_id===session.user.id)?.id || (state.members[0] && state.members[0].id);
-  const rows = [];
-  let hadRecurring = false;
-  rawEvents.forEach(ev=>{
-    if(!ev.uid || !ev.dtstart) return;
-    if(ev.rrule) hadRecurring = true;
-    const start = parseICSDateTime(ev.dtstart, ev.dtstartParams);
-    if(!start) return;
-    const end = ev.dtend ? parseICSDateTime(ev.dtend, ev.dtendParams) : null;
-    let endDate = end ? end.date : start.date;
-    /* 종일 일정은 ICS 규격상 DTEND가 다음날 자정(배타적 끝)이라 하루 앞당겨서 실제 마지막 날로 보정 */
-    if(start.allDay && end && end.date > start.date){
-      const endD = new Date(end.date+'T00:00:00');
-      endD.setDate(endD.getDate()-1);
-      const pad2 = n=>String(n).padStart(2,'0');
-      endDate = `${endD.getFullYear()}-${pad2(endD.getMonth()+1)}-${pad2(endD.getDate())}`;
-      if(endDate < start.date) endDate = start.date;
-    }
-    rows.push({
-      calendar_id: state.calendar.id,
-      member_id: myMemberId,
-      event_date: start.date,
-      end_date: endDate,
-      event_time: start.allDay ? null : start.time,
-      end_time: (start.allDay || !end) ? null : end.time,
-      title: ev.summary || '(제목 없음)',
-      note: ev.description || null,
-      category: 'work',
-      leave_type: null,
-      source: 'timetree',
-      external_uid: ev.uid
-    });
-  });
-  if(rows.length === 0) return {imported:0, skipped: rawEvents.length, hadRecurring};
-  const {error} = await sb.from('events').upsert(rows, {onConflict:'calendar_id,external_uid'});
-  if(error) throw error;
-  return {imported: rows.length, skipped: rawEvents.length - rows.length, hadRecurring};
-}
-function openTimeTreeImportDrawer(){
-  const drawer = document.getElementById('drawer');
-  drawer.innerHTML = `
-    <button class="close-x" id="closeX">✕</button>
-    <h2>TimeTree 가져오기</h2>
-    <div class="empty" style="margin-bottom:14px;line-height:1.6;">
-      TimeTree에서 캘린더를 .ics 파일로 내보낸 뒤 여기서 업로드하면 그 일정들을 이 캘린더로 가져와요.
-      읽기 전용 가져오기라 TimeTree 쪽에서 바뀐 내용은 다시 가져오기 전까진 반영되지 않고, 반복 일정은 첫 회차만 가져와져요.
-    </div>
-    <div class="field">
-      <label>.ics 파일 선택</label>
-      <input type="file" id="ttFile" accept=".ics,text/calendar">
-    </div>
-    <div class="empty" style="margin:10px 0 6px;">또는 ICS 텍스트 직접 붙여넣기</div>
-    <div class="field"><textarea id="ttText" placeholder="BEGIN:VCALENDAR ..." style="min-height:100px;font-family:'JetBrains Mono',monospace;font-size:11.5px;"></textarea></div>
-    <button class="btn primary" id="ttImportBtn">가져오기</button>
-    <div id="ttMsg" style="margin-top:10px;font-size:13px;"></div>
-  `;
-  drawer.querySelector('#closeX').onclick = closeDrawer;
-  drawer.querySelector('#ttFile').onchange = (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ()=>{ drawer.querySelector('#ttText').value = reader.result; };
-    reader.readAsText(file);
-  };
-  drawer.querySelector('#ttImportBtn').onclick = async ()=>{
-    const text = drawer.querySelector('#ttText').value.trim();
-    const msg = drawer.querySelector('#ttMsg');
-    if(!text){ msg.className='err'; msg.textContent='.ics 파일을 선택하거나 내용을 붙여넣어주세요.'; return; }
-    msg.className=''; msg.textContent='가져오는 중...';
-    try{
-      const result = await importTimeTreeICS(text);
-      await loadCalendarData(); renderAll();
-      msg.className = 'msg';
-      msg.textContent = result.imported > 0
-        ? `${result.imported}개 일정을 가져왔어요.${result.hadRecurring ? ' (반복 일정은 첫 회차만 가져와졌어요)' : ''}`
-        : '가져올 일정을 찾지 못했어요. 파일 내용을 확인해주세요.';
-    }catch(err){
-      msg.className = 'err';
-      msg.textContent = '가져오기 실패: ' + (err.message || err);
-    }
   };
   document.getElementById('overlay').classList.add('show');
 }
