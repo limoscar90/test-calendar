@@ -2522,6 +2522,24 @@ function openTimeTreeImportDrawer(){
 function googleRedirectUri(){
   return window.location.origin + window.location.pathname;
 }
+/* sb.functions.invoke는 Edge Function이 4xx/5xx를 응답하면 실제 에러 메시지를
+   숨기고 "non-2xx status code"라는 뭉뚱그린 메시지만 주기 때문에, 응답 본문(JSON)을
+   직접 열어서 진짜 에러 내용을 꺼내온다 */
+async function invokeGoogleFn(action, extra){
+  const {data, error} = await sb.functions.invoke('google-calendar', { body: { action, ...extra } });
+  if(error){
+    let detail = error.message || String(error);
+    if(error.context && typeof error.context.json === 'function'){
+      try{
+        const body = await error.context.clone().json();
+        if(body && body.error) detail = body.error;
+      }catch(_e){ /* 본문이 JSON이 아니면 원래 메시지 사용 */ }
+    }
+    throw new Error(detail);
+  }
+  if(data && data.error) throw new Error(data.error);
+  return data;
+}
 function startGoogleCalendarConnect(){
   const oauthState = uid();
   sessionStorage.setItem('googleOAuthState', oauthState);
@@ -2552,11 +2570,7 @@ async function handleGoogleOAuthRedirect(){
   }
   if(!state.calendar) return;
   try{
-    const {data, error} = await sb.functions.invoke('google-calendar', {
-      body: { action:'connect', code, calendar_id: state.calendar.id, redirect_uri: cleanUrl }
-    });
-    if(error) throw error;
-    if(data && data.error) throw new Error(data.error);
+    const data = await invokeGoogleFn('connect', { code, calendar_id: state.calendar.id, redirect_uri: cleanUrl });
     alert(`구글 캘린더(${(data && data.google_email) || ''})가 연동됐어요. 몇 분 안에 일정이 자동으로 들어올 거예요.`);
   }catch(err){
     alert('구글 캘린더 연동 실패: ' + (err.message || err));
@@ -2579,19 +2593,17 @@ async function openGoogleCalendarDrawer(){
   const statusEl = drawer.querySelector('#gcStatus');
   const actionsEl = drawer.querySelector('#gcActions');
   try{
-    const {data, error} = await sb.functions.invoke('google-calendar', {
-      body: { action:'status', calendar_id: state.calendar.id }
-    });
-    if(error) throw error;
+    const data = await invokeGoogleFn('status', { calendar_id: state.calendar.id });
     if(data.connected){
       const lastSync = data.last_synced_at ? ('마지막 동기화 ' + new Date(data.last_synced_at).toLocaleString('ko-KR')) : '아직 동기화 전 (몇 분 내로 첫 동기화가 진행돼요)';
       statusEl.textContent = `연동됨 · ${data.google_email || ''} · ${lastSync}`;
       actionsEl.innerHTML = `<button class="btn danger" id="gcDisconnectBtn" style="width:100%;">연동 해제</button>`;
       actionsEl.querySelector('#gcDisconnectBtn').onclick = async ()=>{
         if(!confirm('구글 캘린더 연동을 해제할까요? 이미 가져온 일정은 그대로 남고, 앞으로 자동으로 가져오지 않아요.')) return;
-        const {error: dErr} = await sb.functions.invoke('google-calendar', { body: { action:'disconnect', calendar_id: state.calendar.id } });
-        if(dErr){ alert('연동 해제 실패: ' + dErr.message); return; }
-        openGoogleCalendarDrawer();
+        try{
+          await invokeGoogleFn('disconnect', { calendar_id: state.calendar.id });
+          openGoogleCalendarDrawer();
+        }catch(dErr){ alert('연동 해제 실패: ' + dErr.message); }
       };
     } else {
       statusEl.textContent = '아직 연동되지 않았어요.';
