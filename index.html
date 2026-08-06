@@ -1887,7 +1887,7 @@ function openEventDrawer(eventId, anchorEvent){
     <div class="row-btns">
       <button class="btn primary" id="editBtn">수정</button>
     </div>
-    ${(ev.category || (ev.leave_type ? 'leave' : 'work')) === 'leave' ? '' : '<button class="btn ghost" id="newConsultBtn" style="width:100%;border-color:var(--accent);color:var(--accent);margin-bottom:16px;">+ 신규 상담 등록</button>'}
+    ${(ev.category || (ev.leave_type ? 'leave' : 'work')) === 'work' ? '<button class="btn ghost" id="newConsultBtn" style="width:100%;border-color:var(--accent);color:var(--accent);margin-bottom:16px;">+ 신규 상담 등록</button>' : ''}
     <div class="comments">
       <h3>댓글 / 메모</h3>
       <div id="commentList"></div>
