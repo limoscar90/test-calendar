@@ -543,26 +543,7 @@
     </div>
     <div class="mini-cal-card cat-legend-card">
       <div class="cat-legend-title">일정 구분</div>
-      <div class="cat-legend-row">
-        <label class="cat-legend-check">
-          <input type="checkbox" id="catFilterWork" checked>
-          업무
-        </label>
-        <div class="cat-color-wrap">
-          <button type="button" class="cat-color-trigger" id="catColorWorkTrigger" aria-label="업무 색상 변경"></button>
-          <div class="cat-swatches-popover" id="catSwatchesWork"></div>
-        </div>
-      </div>
-      <div class="cat-legend-row">
-        <label class="cat-legend-check">
-          <input type="checkbox" id="catFilterLeave" checked>
-          휴가
-        </label>
-        <div class="cat-color-wrap">
-          <button type="button" class="cat-color-trigger" id="catColorLeaveTrigger" aria-label="휴가 색상 변경"></button>
-          <div class="cat-swatches-popover" id="catSwatchesLeave"></div>
-        </div>
-      </div>
+      <div id="catLegendRows"></div>
       <button type="button" class="cat-legend-reset" id="catColorResetBtn">기본 색상으로</button>
     </div>
   </div>
@@ -615,13 +596,18 @@ const LEAVE_TYPES = {
   half_pm: {label:'오후 반차', emoji:'🌥️'},
   half: {label:'반차', emoji:'🌓'} /* 과거 데이터 호환용 */
 };
-const DEFAULT_CATEGORY_COLORS = {work:'#7C6FEE', leave:'#FFB020'};
+const DEFAULT_CATEGORY_COLORS = {work:'#7C6FEE', leave:'#FFB020', meeting_room:'#12B76A', vehicle:'#0BA5EC'};
 const CATEGORIES = {
   work: {label:'업무', color: DEFAULT_CATEGORY_COLORS.work},
-  leave: {label:'휴가', color: DEFAULT_CATEGORY_COLORS.leave}
+  leave: {label:'휴가', color: DEFAULT_CATEGORY_COLORS.leave},
+  meeting_room: {label:'미팅룸 예약', color: DEFAULT_CATEGORY_COLORS.meeting_room},
+  vehicle: {label:'차량 이용', color: DEFAULT_CATEGORY_COLORS.vehicle}
 };
 /* 일정 구분·배너 색상 공통 선택지 — 네이티브 색상 선택기 대신 여기서 10가지로만 고르게 함 */
 const COLOR_SWATCHES = ['#FF6B6B','#FFB020','#FACC15','#12B76A','#0BA5EC','#7C6FEE','#6366F1','#F553BE','#84CC16','#64748B'];
+function categoryOptionsHtml(){
+  return Object.keys(CATEGORIES).map(cat=>`<option value="${cat}">${escapeHtml(CATEGORIES[cat].label)}</option>`).join('');
+}
 const PHOTO_BUCKET = 'calendar-photos';
 
 let sb = null;
@@ -638,7 +624,7 @@ let state = {
   comments: {},          // event_id -> [{id, member_id, text, created_at}]
   photos: {},            // 'YYYY-MM-DD' -> [{id, storage_path, member_id, url}]
   visible: new Set(),
-  categoryVisible: new Set(['work','leave']),
+  categoryVisible: new Set(Object.keys(CATEGORIES)),
   year: 2026, month: 6,
   anchor: new Date(),
   viewMode: 'month', // 'month' | 'week' | 'day'
@@ -823,49 +809,62 @@ function wireEnterChain(fieldIds, submitBtnId){
 }
 
 /* ============================ INIT ============================ */
-function syncCatLegendUI(){
+/* 일정 구분 목록(CATEGORIES)에 있는 만큼 그대로 그려주는 방식이라, 카테고리를 더 추가해도 이 함수는 안 건드려도 됨 */
+function renderCatLegend(){
+  const container = document.getElementById('catLegendRows');
+  if(!container) return;
+  container.innerHTML = '';
   Object.keys(CATEGORIES).forEach(cat=>{
-    const hex = CATEGORIES[cat].color;
-    const checkbox = document.getElementById(cat==='work' ? 'catFilterWork' : 'catFilterLeave');
-    if(checkbox) checkbox.style.accentColor = hex;
-    const trigger = document.getElementById(cat==='work' ? 'catColorWorkTrigger' : 'catColorLeaveTrigger');
-    if(trigger) trigger.style.background = hex;
-    const popover = document.getElementById(cat==='work' ? 'catSwatchesWork' : 'catSwatchesLeave');
-    if(popover){
-      popover.innerHTML = '';
-      COLOR_SWATCHES.forEach(sw=>{
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'cat-swatch' + (sw.toLowerCase()===hex.toLowerCase() ? ' sel' : '');
-        btn.style.background = sw;
-        btn.setAttribute('aria-label', sw);
-        btn.onclick = (e)=>{ e.stopPropagation(); applyCategoryColor(cat, sw); popover.classList.remove('show'); };
-        popover.appendChild(btn);
-      });
-    }
+    const info = CATEGORIES[cat];
+    const hex = info.color;
+    const row = document.createElement('div');
+    row.className = 'cat-legend-row';
+    row.innerHTML = `
+      <label class="cat-legend-check">
+        <input type="checkbox" ${state.categoryVisible.has(cat) ? 'checked' : ''}>
+        ${escapeHtml(info.label)}
+      </label>
+      <div class="cat-color-wrap">
+        <button type="button" class="cat-color-trigger" aria-label="${escapeHtml(info.label)} 색상 변경" style="background:${hex};"></button>
+        <div class="cat-swatches-popover"></div>
+      </div>
+    `;
+    row.querySelector('input[type=checkbox]').onchange = (e)=>{
+      if(e.target.checked) state.categoryVisible.add(cat); else state.categoryVisible.delete(cat);
+      renderAll();
+    };
+    const trigger = row.querySelector('.cat-color-trigger');
+    const popover = row.querySelector('.cat-swatches-popover');
+    COLOR_SWATCHES.forEach(sw=>{
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cat-swatch' + (sw.toLowerCase()===hex.toLowerCase() ? ' sel' : '');
+      btn.style.background = sw;
+      btn.setAttribute('aria-label', sw);
+      btn.onclick = (e)=>{ e.stopPropagation(); applyCategoryColor(cat, sw); popover.classList.remove('show'); };
+      popover.appendChild(btn);
+    });
+    trigger.onclick = (e)=>{
+      e.stopPropagation();
+      const willShow = !popover.classList.contains('show');
+      document.querySelectorAll('.cat-swatches-popover.show').forEach(p=>p.classList.remove('show'));
+      if(willShow) popover.classList.add('show');
+    };
+    container.appendChild(row);
   });
 }
-function wireCatColorPopover(triggerId, popoverId){
-  const trigger = document.getElementById(triggerId);
-  const popover = document.getElementById(popoverId);
-  trigger.onclick = (e)=>{
-    e.stopPropagation();
-    const willShow = !popover.classList.contains('show');
-    document.querySelectorAll('.cat-swatches-popover.show').forEach(p=>p.classList.remove('show'));
-    if(willShow) popover.classList.add('show');
-  };
-  document.addEventListener('click', (e)=>{
-    if(!popover.classList.contains('show')) return;
-    if(!popover.contains(e.target) && e.target !== trigger){
-      popover.classList.remove('show');
-    }
+/* 팝오버 바깥을 클릭하면 닫히게: 카테고리 개수와 무관하게 한 번만 걸어두면 되는 공용 리스너 */
+document.addEventListener('click', (e)=>{
+  document.querySelectorAll('.cat-swatches-popover.show').forEach(p=>{
+    const wrap = p.closest('.cat-color-wrap');
+    if(wrap && !wrap.contains(e.target)) p.classList.remove('show');
   });
-}
+});
 function applyCategoryColor(cat, hex){
   CATEGORIES[cat].color = hex || DEFAULT_CATEGORY_COLORS[cat];
   if(hex){ localStorage.setItem('catColor_'+cat, hex); }
   else { localStorage.removeItem('catColor_'+cat); }
-  syncCatLegendUI();
+  renderCatLegend();
   renderAll();
 }
 function applyBannerColor(hex){
@@ -885,7 +884,7 @@ function applyBannerColor(hex){
     const saved = localStorage.getItem('catColor_'+cat);
     if(saved) CATEGORIES[cat].color = saved;
   });
-  syncCatLegendUI();
+  renderCatLegend();
 
   if(!SUPABASE_URL || SUPABASE_URL.includes('YOUR_') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('YOUR_')){
     show('configWarning');
@@ -1733,10 +1732,7 @@ function openDayDrawer(key, y, m, d, anchorEvent){
     <div class="field" id="newTitleField"><label>일정 제목</label><input type="text" id="newTitle" placeholder="예: 병원 예약"></div>
     <div class="field">
       <label>구분</label>
-      <select id="newCategory">
-        <option value="work">업무</option>
-        <option value="leave">휴가</option>
-      </select>
+      <select id="newCategory">${categoryOptionsHtml()}</select>
     </div>
     <div class="field hidden" id="newLeaveTypeField">
       <label>근태 유형</label>
@@ -2057,10 +2053,7 @@ function openEventEditDrawer(eventId, anchorEvent){
     <div class="field" id="editTitleField"><label>일정 제목</label><input type="text" id="editTitle" value="${escapeHtml(ev.title)}"></div>
     <div class="field">
       <label>구분</label>
-      <select id="editCategory">
-        <option value="work">업무</option>
-        <option value="leave">휴가</option>
-      </select>
+      <select id="editCategory">${categoryOptionsHtml()}</select>
     </div>
     <div class="field hidden" id="editLeaveTypeField">
       <label>근태 유형</label>
@@ -2604,20 +2597,9 @@ document.getElementById('prevBtn').onclick = goPrev;
 document.getElementById('nextBtn').onclick = goNext;
 document.getElementById('miniCalPrev').onclick = ()=>{ state.anchor.setMonth(state.anchor.getMonth()-1); renderAll(); };
 document.getElementById('miniCalNext').onclick = ()=>{ state.anchor.setMonth(state.anchor.getMonth()+1); renderAll(); };
-document.getElementById('catFilterWork').onchange = (e)=>{
-  if(e.target.checked) state.categoryVisible.add('work'); else state.categoryVisible.delete('work');
-  renderAll();
-};
-document.getElementById('catFilterLeave').onchange = (e)=>{
-  if(e.target.checked) state.categoryVisible.add('leave'); else state.categoryVisible.delete('leave');
-  renderAll();
-};
 document.getElementById('catColorResetBtn').onclick = ()=>{
-  applyCategoryColor('work', null);
-  applyCategoryColor('leave', null);
+  Object.keys(CATEGORIES).forEach(cat=> applyCategoryColor(cat, null));
 };
-wireCatColorPopover('catColorWorkTrigger', 'catSwatchesWork');
-wireCatColorPopover('catColorLeaveTrigger', 'catSwatchesLeave');
 
 // 월간·주간·일간 화면 공통: 마우스 휠(또는 트랙패드 스크롤)로 이전/다음 이동.
 // 단, 안에 더 볼 내용(스크롤 여지)이 있으면 달/주 이동 대신 그 안을 먼저 스크롤하게 해서
