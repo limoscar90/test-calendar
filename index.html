@@ -524,6 +524,7 @@
         <button id="calSettingsBtn" class="hidden">캘린더 설정</button>
         <button id="accountSettingsBtn2">계정 설정</button>
         <button id="timeTreeImportBtn">📥 TimeTree 가져오기</button>
+        <button id="googleCalendarBtn">🔗 구글 캘린더 연동</button>
         <div class="account-menu-divider"></div>
         <button id="logoutBtn2" class="danger">로그아웃</button>
       </div>
@@ -603,6 +604,8 @@
 /* ================= CONFIG — 여기를 본인 Supabase 값으로 교체하세요 ================= */
 const SUPABASE_URL = 'https://eftwsegfndgwlcpebbzx.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_Id2brxxisfyutd1LX2DYEw_cAVA3G4S';
+/* 구글 캘린더 자동 동기화용 — Client ID는 공개돼도 되는 값입니다 (Client Secret은 절대 여기 넣지 마세요) */
+const GOOGLE_CLIENT_ID = '131022489453-mijsgb8s71q1trppl0kns7q7jgt83r9b.apps.googleusercontent.com';
 /* =================================================================================== */
 
 const COLORS = ['raspberry','amber','teal','violet','sage'];
@@ -1107,6 +1110,8 @@ async function openCalendar(calendarId){
   document.getElementById('accountSettingsBtn2').onclick = openAccountSettingsDrawer;
   document.getElementById('membersPanelToggle').onclick = openMembersPanel;
   document.getElementById('timeTreeImportBtn').onclick = openTimeTreeImportDrawer;
+  document.getElementById('googleCalendarBtn').onclick = openGoogleCalendarDrawer;
+  handleGoogleOAuthRedirect();
   document.querySelectorAll('#viewTabs button').forEach(b=>{
     b.classList.toggle('active', b.dataset.mode === 'month');
   });
@@ -2511,6 +2516,91 @@ function openTimeTreeImportDrawer(){
     }
   };
   document.getElementById('overlay').classList.add('show');
+}
+
+/* ============================ 구글 캘린더 자동 동기화 (읽기 전용) ============================ */
+function googleRedirectUri(){
+  return window.location.origin + window.location.pathname;
+}
+function startGoogleCalendarConnect(){
+  const oauthState = uid();
+  sessionStorage.setItem('googleOAuthState', oauthState);
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: googleRedirectUri(),
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    access_type: 'offline',
+    prompt: 'consent',
+    state: oauthState
+  });
+  window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+/* 구글 인증 후 ?code=...&state=...로 이 페이지에 돌아왔을 때 처리 (openCalendar 완료 뒤 호출됨) */
+async function handleGoogleOAuthRedirect(){
+  const qs = new URLSearchParams(window.location.search);
+  const code = qs.get('code');
+  const returnedState = qs.get('state');
+  if(!code) return;
+  const cleanUrl = window.location.origin + window.location.pathname;
+  window.history.replaceState({}, '', cleanUrl);
+  const savedState = sessionStorage.getItem('googleOAuthState');
+  sessionStorage.removeItem('googleOAuthState');
+  if(!savedState || savedState !== returnedState){
+    alert('구글 인증 확인에 실패했어요. 다시 시도해주세요.');
+    return;
+  }
+  if(!state.calendar) return;
+  try{
+    const {data, error} = await sb.functions.invoke('google-calendar', {
+      body: { action:'connect', code, calendar_id: state.calendar.id, redirect_uri: cleanUrl }
+    });
+    if(error) throw error;
+    if(data && data.error) throw new Error(data.error);
+    alert(`구글 캘린더(${(data && data.google_email) || ''})가 연동됐어요. 몇 분 안에 일정이 자동으로 들어올 거예요.`);
+  }catch(err){
+    alert('구글 캘린더 연동 실패: ' + (err.message || err));
+  }
+}
+async function openGoogleCalendarDrawer(){
+  const drawer = document.getElementById('drawer');
+  drawer.innerHTML = `
+    <button class="close-x" id="closeX">✕</button>
+    <h2>구글 캘린더 연동</h2>
+    <div class="empty" style="margin-bottom:14px;line-height:1.6;">
+      연동하면 구글 캘린더의 일정을 몇 분 주기로 자동으로 가져와요. 읽기 전용이라 이 캘린더에서 수정해도 구글 쪽에는 반영되지 않아요.
+    </div>
+    <div id="gcStatus" class="empty">상태 확인 중...</div>
+    <div id="gcActions" style="margin-top:14px;"></div>
+  `;
+  drawer.querySelector('#closeX').onclick = closeDrawer;
+  document.getElementById('overlay').classList.add('show');
+
+  const statusEl = drawer.querySelector('#gcStatus');
+  const actionsEl = drawer.querySelector('#gcActions');
+  try{
+    const {data, error} = await sb.functions.invoke('google-calendar', {
+      body: { action:'status', calendar_id: state.calendar.id }
+    });
+    if(error) throw error;
+    if(data.connected){
+      const lastSync = data.last_synced_at ? ('마지막 동기화 ' + new Date(data.last_synced_at).toLocaleString('ko-KR')) : '아직 동기화 전 (몇 분 내로 첫 동기화가 진행돼요)';
+      statusEl.textContent = `연동됨 · ${data.google_email || ''} · ${lastSync}`;
+      actionsEl.innerHTML = `<button class="btn danger" id="gcDisconnectBtn" style="width:100%;">연동 해제</button>`;
+      actionsEl.querySelector('#gcDisconnectBtn').onclick = async ()=>{
+        if(!confirm('구글 캘린더 연동을 해제할까요? 이미 가져온 일정은 그대로 남고, 앞으로 자동으로 가져오지 않아요.')) return;
+        const {error: dErr} = await sb.functions.invoke('google-calendar', { body: { action:'disconnect', calendar_id: state.calendar.id } });
+        if(dErr){ alert('연동 해제 실패: ' + dErr.message); return; }
+        openGoogleCalendarDrawer();
+      };
+    } else {
+      statusEl.textContent = '아직 연동되지 않았어요.';
+      actionsEl.innerHTML = `<button class="btn primary" id="gcConnectBtn" style="width:100%;">구글 계정으로 연동하기</button>`;
+      actionsEl.querySelector('#gcConnectBtn').onclick = startGoogleCalendarConnect;
+    }
+  }catch(err){
+    statusEl.textContent = '상태를 확인하지 못했어요: ' + (err.message || err);
+  }
 }
 
 let lastAnchorRect = null;
