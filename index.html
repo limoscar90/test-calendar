@@ -1225,16 +1225,10 @@ function holidayOn(key){ return HOLIDAYS_KR[key] || null; }
 function eventsOn(key){ return state.events.filter(e=> key >= e.event_date && key <= (e.end_date || e.event_date)); }
 function photosOn(key){ return state.photos[key] || []; }
 function tagLabel(e){
-  const mem = memberById(e.member_id);
-  const name = mem ? mem.display_name : '?';
   const time = e.event_time ? `${e.event_time}${e.end_time ? '~'+e.end_time : ''} ` : '';
   const lt = LEAVE_TYPES[e.leave_type];
   const prefix = lt ? `${lt.emoji} ` : '';
-  if(eventCategory(e) === 'leave'){
-    /* 휴가 일정의 제목은 이미 "담당 멤버 + 근태 유형"으로 자동 생성돼 있어 이름을 또 붙이지 않음 */
-    return `${prefix}${time}${e.title}`;
-  }
-  return `${prefix}${time}${name} · ${e.title}`;
+  return `${prefix}${time}${e.title}`;
 }
 
 /* 칸에서 잘린 일정 태그에 마우스를 올렸을 때, 어떤 스크롤/겹침 영역 안에 있어도
