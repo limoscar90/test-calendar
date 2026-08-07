@@ -1367,9 +1367,20 @@ function renderGrid(){
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const daysInPrevMonth = new Date(year, month, 0).getDate();
-  const totalCells = 42; // 항상 6주(42칸)로 고정 — 달마다 4~6주로 들쭉날쭉하면 칸 높이도 달마다 달라져서 통일함
+  const totalCells = Math.ceil((firstDay + daysInMonth)/7)*7; // 실제 달에 필요한 주(4~6주)만큼만 생성
   const numRows = totalCells/7;
   grid.style.gridTemplateRows = `repeat(${numRows}, 1fr)`;
+  /* 모바일에서는 달마다 주 수(numRows)가 달라도 칸 세로 높이는 항상 6주 기준으로 맞춰서
+     5주짜리 달의 칸이 6주짜리보다 작아 보이거나 아래에 빈 공간이 남지 않게 함.
+     (min-height만으로는 grid의 1fr 행이 실제로 안 늘어나서, JS로 명확한 px 높이를 직접 지정함) */
+  if(window.matchMedia('(max-width:960px)').matches){
+    const isNarrow = window.matchMedia('(max-width:640px)').matches;
+    const cellMin = isNarrow ? 82 : 104;
+    const gapPx = isNarrow ? 1 : 6;
+    grid.style.height = (cellMin*6 + gapPx*5) + 'px';
+  } else {
+    grid.style.height = '';
+  }
   const tKey = todayKeyStr();
 
   for(let i=0;i<totalCells;i++){
