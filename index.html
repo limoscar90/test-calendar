@@ -322,6 +322,8 @@
     .grid{gap:1px;}
     .cell{padding:14px 1px 2px;gap:1px;min-height:82px;border-radius:5px;}
     .cell .num{top:2px;right:3px;font-size:9.5px;}
+    /* 원형 배지가 좁아진 칸 안에서 태그랑 겹쳐 보여서, 모바일에서는 색 글씨로만 오늘 표시 */
+    .cell.today .num{background:none;color:var(--accent);width:auto;height:auto;border-radius:0;top:2px;right:3px;font-weight:800;}
     .tag{font-size:8px;padding:1px 2px;border-radius:3px;box-shadow:none;font-weight:500;}
     .more{font-size:8px;}
   }
