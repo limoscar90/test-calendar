@@ -282,7 +282,7 @@
   #dayView .day-view-list{flex:1;min-height:0;overflow-y:auto;}
   @media (max-width:960px){
     #monthView, #weekView, #dayView{flex:none;height:auto;}
-    .grid{overflow-y:visible;min-height:62vh;}
+    .grid{overflow-y:visible;}
     #weekView .week-timetable{flex:none;}
     #weekView .wtt-body{flex:none;max-height:70vh;}
     #dayView .day-view-card{flex:none;overflow:visible;}
@@ -1367,7 +1367,7 @@ function renderGrid(){
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const daysInPrevMonth = new Date(year, month, 0).getDate();
-  const totalCells = Math.ceil((firstDay + daysInMonth)/7)*7; // 실제 달에 필요한 주(5주/6주)만큼만 생성
+  const totalCells = 42; // 항상 6주(42칸)로 고정 — 달마다 4~6주로 들쭉날쭉하면 칸 높이도 달마다 달라져서 통일함
   const numRows = totalCells/7;
   grid.style.gridTemplateRows = `repeat(${numRows}, 1fr)`;
   const tKey = todayKeyStr();
