@@ -1,6 +1,6 @@
 {
-  "name": "우리캘린더",
-  "short_name": "우리캘린더",
+  "name": "캘린더",
+  "short_name": "캘린더",
   "description": "우리 팀 공유 캘린더",
   "start_url": "./index.html",
   "scope": "./",
