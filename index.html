@@ -2657,6 +2657,30 @@ function attachWheelNav(containerId, scrollSelector){
 }
 attachWheelNav('monthView', '.grid');
 attachWheelNav('weekView', '.wtt-body');
+
+// 모바일: 화면을 좌우로 스와이프하면 이전/다음(월간=달, 주간=주, 일간=하루)으로 이동
+function attachSwipeNav(containerId){
+  const el = document.getElementById(containerId);
+  let startX = 0, startY = 0, tracking = false;
+  el.addEventListener('touchstart', (e)=>{
+    if(e.touches.length !== 1){ tracking = false; return; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, {passive:true});
+  el.addEventListener('touchend', (e)=>{
+    if(!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if(Math.abs(dx) < 60) return; // 너무 짧은 움직임(탭 등)은 무시
+    if(Math.abs(dx) < Math.abs(dy) * 1.5) return; // 세로 스크롤과 헷갈리지 않게 충분히 수평적일 때만
+    if(dx < 0) goNext(); else goPrev();
+  }, {passive:true});
+}
+attachSwipeNav('monthView');
+attachSwipeNav('weekView');
+attachSwipeNav('dayView');
 attachWheelNav('dayView', '.day-view-list');
 document.getElementById('todayBtn').onclick = ()=>{
   const t=new Date();
