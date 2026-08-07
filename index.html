@@ -301,6 +301,17 @@
   .tag-tooltip.show{display:block;}
   .holiday-label{font-size:10px;color:var(--danger);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-width:0;}
 
+  /* 좁은 화면(모바일)에서는 칸 안쪽 여백/칸 사이 간격을 최대한 줄이고 글자 크기를 낮춰서
+     같은 한 줄 안에 더 많은 글자가 보이도록 합니다. */
+  @media (max-width:640px){
+    .app-shell{padding-left:8px;padding-right:8px;}
+    .grid{gap:3px;}
+    .cell{padding:18px 3px 4px;gap:2px;min-height:88px;}
+    .cell .num{top:5px;right:5px;font-size:10.5px;}
+    .tag{font-size:9px;padding:2px 4px;border-radius:6px;}
+    .more{font-size:9px;}
+  }
+
   .fab{
     position:fixed;right:24px;bottom:28px;width:58px;height:58px;border-radius:50%;
     background:var(--accent-grad);color:#fff;border:none;font-size:26px;line-height:1;
