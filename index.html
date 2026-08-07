@@ -6,6 +6,7 @@
 <title>캘린더</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#6D5DFB">
+<meta name="color-scheme" content="light dark">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -33,6 +34,20 @@
     --shadow-md: 0 8px 24px rgba(18,19,28,.08), 0 2px 6px rgba(18,19,28,.05);
     --shadow-lg: 0 24px 48px rgba(18,19,28,.14), 0 8px 16px rgba(18,19,28,.06);
     --ease: cubic-bezier(.22,1,.36,1);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14151D;
+      --surface:#1D1F29;
+      --surface-soft:#252732;
+      --ink:#EDEEF5;
+      --ink-soft:#9A9DB2;
+      --line:#34364444;
+      --danger:#F87171;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.3), 0 1px 1px rgba(0,0,0,.24);
+      --shadow-md: 0 8px 24px rgba(0,0,0,.36), 0 2px 6px rgba(0,0,0,.24);
+      --shadow-lg: 0 24px 48px rgba(0,0,0,.5), 0 8px 16px rgba(0,0,0,.3);
+    }
   }
   *{box-sizing:border-box;}
   body{
@@ -304,12 +319,12 @@
   /* 좁은 화면(모바일)에서는 칸 안쪽 여백/칸 사이 간격을 최대한 줄이고 글자 크기를 낮춰서
      같은 한 줄 안에 더 많은 글자가 보이도록 합니다. */
   @media (max-width:640px){
-    .app-shell{padding-left:3px;padding-right:3px;}
-    .grid{gap:1.5px;}
-    .cell{padding:16px 1.5px 3px;gap:1.5px;min-height:88px;border-radius:8px;}
-    .cell .num{top:4px;right:4px;font-size:10px;}
-    .tag{font-size:8.5px;padding:2px 3px;border-radius:5px;}
-    .more{font-size:8.5px;}
+    .app-shell{padding-left:1px;padding-right:1px;}
+    .grid{gap:1px;}
+    .cell{padding:14px 1px 2px;gap:1px;min-height:82px;border-radius:5px;}
+    .cell .num{top:2px;right:3px;font-size:9.5px;}
+    .tag{font-size:8px;padding:1px 2px;border-radius:3px;box-shadow:none;font-weight:500;}
+    .more{font-size:8px;}
   }
 
   .fab{
