@@ -43,6 +43,13 @@ function detectLeaveType(title: string): 'annual' | 'half_am' | 'half_pm' | null
   return null;
 }
 
+/* 제목에 "미팅"/"차량"이 들어있으면 그 구분으로 자동 분류 (휴가가 아닌 경우에만 적용) */
+function detectCategory(title: string): 'meeting_room' | 'vehicle' | null {
+  if (title.includes('미팅')) return 'meeting_room';
+  if (title.includes('차량')) return 'vehicle';
+  return null;
+}
+
 Deno.serve(async (_req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const { data: connections, error } = await admin.from('google_calendar_connections').select('*');
@@ -97,6 +104,7 @@ Deno.serve(async (_req) => {
           const rawTitle = item.summary || '(제목 없음)';
           const leaveType = detectLeaveType(rawTitle);
           const isLeave = !!leaveType;
+          const detectedCategory = !isLeave ? detectCategory(rawTitle) : null;
           /* 휴가로 인식되면 앱에서 쓰는 "담당멤버 + 근태유형" 형식으로 제목을 다시 만듦 */
           const title = isLeave
             ? [memberName, LEAVE_LABELS[leaveType!]].filter(Boolean).join(' ')
@@ -110,7 +118,7 @@ Deno.serve(async (_req) => {
             end_time: start.time ? end.time : null,
             title,
             note: item.description || null,
-            category: isLeave ? 'leave' : 'work',
+            category: isLeave ? 'leave' : (detectedCategory ?? 'work'),
             leave_type: leaveType,
             source: 'google',
             external_uid: 'google:' + item.id,
