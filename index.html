@@ -310,7 +310,7 @@
   .tag:hover{transform:scale(1.03);}
   /* 월간 달력의 일정 막대: 여러 날에 걸친 일정도 칸을 넘나들며 한 줄로 이어지도록,
      .cell이 아니라 .grid의 직속 자식으로 놓고 grid-column을 여러 칸에 걸쳐 지정합니다. */
-  .grid > .tag{align-self:start;justify-self:stretch;z-index:2;margin:0 2px;}
+  .grid > .tag{align-self:start;justify-self:stretch;z-index:2;margin:0;border-radius:4px;}
   .more{
     position:absolute;left:8px;bottom:6px;font-size:10.5px;color:var(--ink-soft);
     font-family:'JetBrains Mono',monospace;font-weight:500;min-width:0;pointer-events:none;
