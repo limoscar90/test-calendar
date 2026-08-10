@@ -35,11 +35,11 @@ function toLocalDateTime(dt: { date?: string; dateTime?: string }): { date: stri
 }
 
 const LEAVE_LABELS: Record<string, string> = { annual: '연차', half_am: '오전 반차', half_pm: '오후 반차' };
-/* 제목에 "오전 반차"/"오후 반차"/"연차"가 들어있으면 그 유형으로 인식 (앱에서 쓰는 근태 유형과 동일한 종류) */
+/* 제목에 "오전 반차"/"오후 반차"/"연차"/"휴가"가 들어있으면 그 유형으로 인식 (앱에서 쓰는 근태 유형과 동일한 종류) */
 function detectLeaveType(title: string): 'annual' | 'half_am' | 'half_pm' | null {
   if (title.includes('오전') && title.includes('반차')) return 'half_am';
   if (title.includes('오후') && title.includes('반차')) return 'half_pm';
-  if (title.includes('연차')) return 'annual';
+  if (title.includes('연차') || title.includes('휴가')) return 'annual';
   return null;
 }
 
