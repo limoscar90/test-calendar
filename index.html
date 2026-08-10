@@ -34,6 +34,8 @@
     --shadow-md: 0 8px 24px rgba(18,19,28,.08), 0 2px 6px rgba(18,19,28,.05);
     --shadow-lg: 0 24px 48px rgba(18,19,28,.14), 0 8px 16px rgba(18,19,28,.06);
     --ease: cubic-bezier(.22,1,.36,1);
+    /* 월간 달력의 여러 날에 걸친 일정 막대를 칸 위에 겹쳐 그릴 때 쓰는 기준값들 */
+    --cell-pad-top:28px; --bar-step:22px;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -290,7 +292,7 @@
   }
   .cell{
     border:1px solid var(--line);border-radius:var(--r-md);
-    min-height:104px;min-width:0;padding:28px 8px 8px;position:relative;background:var(--surface);
+    min-height:104px;min-width:0;padding:var(--cell-pad-top) 8px 8px;position:relative;background:var(--surface);
     text-align:left;display:flex;flex-direction:column;gap:4px;
     transition:transform .15s var(--ease), box-shadow .15s var(--ease), border-color .15s var(--ease);
   }
@@ -306,7 +308,13 @@
     transition:transform .12s var(--ease);position:relative;
   }
   .tag:hover{transform:scale(1.03);}
-  .more{font-size:10.5px;color:var(--ink-soft);padding-left:2px;font-family:'JetBrains Mono',monospace;font-weight:500;min-width:0;}
+  /* 월간 달력의 일정 막대: 여러 날에 걸친 일정도 칸을 넘나들며 한 줄로 이어지도록,
+     .cell이 아니라 .grid의 직속 자식으로 놓고 grid-column을 여러 칸에 걸쳐 지정합니다. */
+  .grid > .tag{align-self:start;justify-self:stretch;z-index:2;margin:0 2px;}
+  .more{
+    position:absolute;left:8px;bottom:6px;font-size:10.5px;color:var(--ink-soft);
+    font-family:'JetBrains Mono',monospace;font-weight:500;min-width:0;pointer-events:none;
+  }
   /* 잘린 일정 제목에 마우스를 올리면 화면 어디에 있든(스크롤 영역 밖으로도) 잘리지 않고 전체 내용이 뜨는 커스텀 툴팁 */
   .tag-tooltip{
     position:fixed;z-index:9999;background:var(--ink);color:#fff;padding:7px 11px;border-radius:8px;
@@ -319,8 +327,9 @@
   /* 좁은 화면(모바일)에서는 칸 안쪽 여백/칸 사이 간격을 최대한 줄이고 글자 크기를 낮춰서
      같은 한 줄 안에 더 많은 글자가 보이도록 합니다. */
   @media (max-width:640px){
+    :root{ --cell-pad-top:14px; --bar-step:12px; }
     .grid{gap:1px;}
-    .cell{padding:14px 1px 2px;gap:1px;min-height:82px;border-radius:5px;}
+    .cell{padding:var(--cell-pad-top) 1px 2px;gap:1px;min-height:82px;border-radius:5px;}
     .cell .num{top:2px;right:3px;font-size:9.5px;}
     /* 원형 배지가 좁아진 칸 안에서 태그랑 겹쳐 보여서, 모바일에서는 색 글씨로만 오늘 표시 */
     .cell.today .num{background:none;color:var(--accent);width:auto;height:auto;border-radius:0;top:2px;right:3px;font-weight:800;}
@@ -1382,6 +1391,8 @@ function renderGrid(){
     grid.style.height = '';
   }
   const tKey = todayKeyStr();
+  const cellKeys = []; // i번째 칸의 날짜 key (막대 배치 계산에 사용)
+  const cellEls = [];  // i번째 칸의 DOM 엘리먼트 ("+N개 더" 표시에 사용)
 
   for(let i=0;i<totalCells;i++){
     const cell = document.createElement('button');
@@ -1391,6 +1402,7 @@ function renderGrid(){
     else if(i >= firstDay + daysInMonth){ d = i - firstDay - daysInMonth + 1; m = month+1; if(m>11){m=0;y=year+1;} out=true; }
     else { d = i - firstDay + 1; }
     const key = dateKey(y,m,d);
+    cellKeys.push(key);
     if(out) cell.classList.add('out');
     if(key === tKey) cell.classList.add('today');
 
@@ -1414,22 +1426,6 @@ function renderGrid(){
       cell.appendChild(hLabel);
     }
 
-    const evs = eventsOn(key).filter(eventVisible);
-    evs.slice(0,3).forEach((e,idx)=>{
-      const tag = document.createElement('div');
-      tag.className = 'tag ' + (idx%2===0?'r1':'r2');
-      const mem = memberById(e.member_id);
-      tag.style.background = eventColor(e);
-      tag.textContent = tagLabel(e);
-      wireTagTooltip(tag, tagLabel(e));
-      tag.onclick = (ev)=>{ ev.stopPropagation(); openEventDrawer(e.id, ev); };
-      cell.appendChild(tag);
-    });
-    if(evs.length > 3){
-      const more = document.createElement('div');
-      more.className = 'more'; more.textContent = `+${evs.length-3}개 더`;
-      cell.appendChild(more);
-    }
     const phs = photosOn(key);
     if(phs.length){
       const mp = document.createElement('div');
@@ -1448,6 +1444,65 @@ function renderGrid(){
     }
     cell.onclick = (ev)=> openDayDrawer(key, y, m, d, ev);
     grid.appendChild(cell);
+    cellEls.push(cell);
+  }
+
+  renderMonthBars(grid, cellKeys, cellEls, numRows);
+}
+
+/* 주(줄)마다, 그 줄에 걸쳐있는 일정들을 막대로 계산해서 .grid의 칸들 위에 겹쳐 그립니다.
+   여러 날에 걸친 일정은 실제로 그 날짜 수만큼 grid-column을 늘려서 한 줄로 이어지게 하고,
+   같은 줄 안에서 겹치는 일정끼리는 위아래로 층(레인)을 나눠 쌓습니다. */
+const MAX_VISIBLE_LANES = 3;
+function renderMonthBars(grid, cellKeys, cellEls, numRows){
+  for(let row=0; row<numRows; row++){
+    const rowKeys = cellKeys.slice(row*7, row*7+7);
+    const rowStart = rowKeys[0], rowEnd = rowKeys[6];
+
+    const segs = state.events.filter(eventVisible).filter(e=>{
+      const end = e.end_date || e.event_date;
+      return !(end < rowStart || e.event_date > rowEnd);
+    }).map(e=>{
+      const end = e.end_date || e.event_date;
+      const segStart = e.event_date < rowStart ? rowStart : e.event_date;
+      const segEnd = end > rowEnd ? rowEnd : end;
+      return { event:e, startCol: rowKeys.indexOf(segStart), endCol: rowKeys.indexOf(segEnd) };
+    }).sort((a,b)=> a.startCol - b.startCol || (b.endCol-b.startCol) - (a.endCol-a.startCol));
+
+    const lanes = [];
+    segs.forEach(seg=>{
+      let laneIdx = lanes.findIndex(lane=> lane.every(s=> seg.endCol < s.startCol || seg.startCol > s.endCol));
+      if(laneIdx === -1){ laneIdx = lanes.length; lanes.push([]); }
+      lanes[laneIdx].push(seg);
+      seg.lane = laneIdx;
+    });
+
+    const visibleIds = new Set(segs.filter(s=>s.lane < MAX_VISIBLE_LANES).map(s=>s.event.id));
+    segs.filter(s=>s.lane < MAX_VISIBLE_LANES).forEach(seg=>{
+      const e = seg.event;
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.style.background = eventColor(e);
+      tag.style.gridColumn = `${seg.startCol+1} / ${seg.endCol+2}`;
+      tag.style.gridRow = `${row+1}`;
+      tag.style.marginTop = `calc(var(--cell-pad-top) + ${seg.lane} * var(--bar-step))`;
+      tag.textContent = tagLabel(e);
+      wireTagTooltip(tag, tagLabel(e));
+      tag.onclick = (ev)=>{ ev.stopPropagation(); openEventDrawer(e.id, ev); };
+      grid.appendChild(tag);
+    });
+
+    // 칸별로 레인 밖으로 밀려서 안 보이는 일정 개수를 세서 "+N개 더" 표시
+    for(let c=0;c<7;c++){
+      const key = rowKeys[c];
+      const evs = eventsOn(key).filter(eventVisible);
+      const hidden = evs.filter(e=>!visibleIds.has(e.id)).length;
+      if(hidden > 0){
+        const more = document.createElement('div');
+        more.className = 'more'; more.textContent = `+${hidden}개 더`;
+        cellEls[row*7+c].appendChild(more);
+      }
+    }
   }
 }
 
