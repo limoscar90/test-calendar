@@ -43,9 +43,9 @@ function detectLeaveType(title: string): 'annual' | 'half_am' | 'half_pm' | null
   return null;
 }
 
-/* 제목에 "미팅"/"차량"이 들어있으면 그 구분으로 자동 분류 (휴가가 아닌 경우에만 적용) */
+/* 제목에 "미팅룸"/"차량"이 들어있으면 그 구분으로 자동 분류 (휴가가 아닌 경우에만 적용) */
 function detectCategory(title: string): 'meeting_room' | 'vehicle' | null {
-  if (title.includes('미팅')) return 'meeting_room';
+  if (title.includes('미팅룸')) return 'meeting_room';
   if (title.includes('차량')) return 'vehicle';
   return null;
 }
