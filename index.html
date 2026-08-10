@@ -648,8 +648,8 @@ const DEFAULT_CATEGORY_COLORS = {work:'#7C6FEE', leave:'#FFB020', meeting_room:'
 const CATEGORIES = {
   work: {label:'업무', color: DEFAULT_CATEGORY_COLORS.work},
   leave: {label:'휴가', color: DEFAULT_CATEGORY_COLORS.leave},
-  meeting_room: {label:'미팅룸 예약', color: DEFAULT_CATEGORY_COLORS.meeting_room},
-  vehicle: {label:'차량 이용', color: DEFAULT_CATEGORY_COLORS.vehicle}
+  meeting_room: {label:'미팅룸 예약', color: DEFAULT_CATEGORY_COLORS.meeting_room, emoji:'🏢'},
+  vehicle: {label:'차량 이용', color: DEFAULT_CATEGORY_COLORS.vehicle, emoji:'🚗'}
 };
 /* 일정 구분·배너 색상 공통 선택지 — 네이티브 색상 선택기 대신 여기서 10가지로만 고르게 함 */
 const COLOR_SWATCHES = ['#FF6B6B','#FFB020','#FACC15','#12B76A','#0BA5EC','#7C6FEE','#6366F1','#F553BE','#84CC16','#64748B'];
@@ -1275,7 +1275,8 @@ function photosOn(key){ return state.photos[key] || []; }
 function tagLabel(e){
   const time = e.event_time ? `${e.event_time}${e.end_time ? '~'+e.end_time : ''} ` : '';
   const lt = LEAVE_TYPES[e.leave_type];
-  const prefix = lt ? `${lt.emoji} ` : '';
+  const cat = CATEGORIES[eventCategory(e)];
+  const prefix = lt ? `${lt.emoji} ` : (cat && cat.emoji ? `${cat.emoji} ` : '');
   return `${prefix}${time}${e.title}`;
 }
 
