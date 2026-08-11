@@ -298,9 +298,9 @@
   }
   .cell:hover{background:var(--surface-soft);}
   .cell.out{color:var(--ink-soft);opacity:.4;background:var(--surface-soft);}
-  .cell .num{position:absolute;top:8px;right:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);font-weight:500;}
+  .cell .num{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);font-weight:500;}
   .cell.today{border-color:var(--accent);box-shadow:0 0 0 3px rgba(109,93,251,.12);}
-  .cell.today .num{background:var(--accent-grad);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;top:6px;right:8px;font-weight:600;}
+  .cell.today .num{background:var(--accent-grad);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;top:6px;left:50%;transform:translateX(-50%);font-weight:600;}
   .tag{
     color:#fff;font-size:11px;font-weight:600;padding:3px 8px;border-radius:8px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-width:0;
@@ -330,9 +330,9 @@
     :root{ --cell-pad-top:14px; --bar-step:12px; }
     .grid{gap:0;}
     .cell{padding:var(--cell-pad-top) 1px 2px;gap:1px;min-height:82px;border-radius:0;}
-    .cell .num{top:2px;right:3px;font-size:9.5px;}
+    .cell .num{top:2px;left:50%;transform:translateX(-50%);font-size:9.5px;}
     /* 원형 배지가 좁아진 칸 안에서 태그랑 겹쳐 보여서, 모바일에서는 색 글씨로만 오늘 표시 */
-    .cell.today .num{background:none;color:var(--accent);width:auto;height:auto;border-radius:0;top:2px;right:3px;font-weight:800;}
+    .cell.today .num{background:none;color:var(--accent);width:auto;height:auto;border-radius:0;top:2px;left:50%;transform:translateX(-50%);font-weight:800;}
     .tag{font-size:8px;padding:1px 2px;border-radius:3px;box-shadow:none;font-weight:500;}
     .more{font-size:8px;}
   }
@@ -1492,6 +1492,8 @@ function renderMonthBars(grid, cellKeys, cellEls, numRows){
       tag.style.gridColumn = `${seg.startCol+1} / ${seg.endCol+2}`;
       tag.style.gridRow = `${row+1}`;
       tag.style.marginTop = `calc(var(--cell-pad-top) + ${seg.lane} * var(--bar-step))`;
+      /* 여러 날에 걸쳐 이어지는 일정 막대는 가운데 정렬이 더 보기 좋고, 하루짜리는 목록처럼 왼쪽 정렬이 자연스럽습니다. */
+      if(seg.endCol > seg.startCol) tag.style.textAlign = 'center';
       tag.textContent = tagLabel(e);
       wireTagTooltip(tag, tagLabel(e));
       tag.onclick = (ev)=>{ ev.stopPropagation(); openEventDrawer(e.id, ev); };
